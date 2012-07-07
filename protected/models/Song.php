@@ -90,36 +90,7 @@ class Song extends CActiveRecord {
 		$criteria = new CDbCriteria;
 		$sort = new CSort;
 
-		if ($this->scenario === 'SongGenre') {
-			$dpModel = new SongGenre;
-
-			$criteria->compare('song.name', $this->name, true);
-			$criteria->compare('song.artist', $this->artist, true);
-			$criteria->compare('song.album', $this->album, true);
-			$criteria->compare('genre.name', $this->genre, true);
-		} elseif ($this->scenario === 'Review') {
-			$dpModel = new Review;
-
-			$criteria->compare('song.name', $this->name, true);
-			$criteria->compare('song.artist', $this->artist, true);
-			$criteria->compare('song.album', $this->album, true);
-			$criteria->compare('song.genre.name', $this->genre, true);
-			$criteria->compare('t.review', $this->review, true);
-			$criteria->compare('reviewer.name', $this->reviewer, true);
-		} else {
-			$dpModel = new Song;
-
-			$criteria->compare('name', $this->name, true);
-			$criteria->compare('artist', $this->artist, true);
-			$criteria->compare('album', $this->album, true);
-		}
-
-		if ($this->criteria) {
-			$criteria->mergeWith($this->criteria);
-		}
-
 		$sort->attributes = array(
-			'defaultOrder' => 'song.name asc',
 			'song.name' => array(
 				'asc' => 'song.name asc',
 				'desc' => 'song.name desc',
@@ -136,7 +107,76 @@ class Song extends CActiveRecord {
 				'asc' => 't.review asc',
 				'desc' => 't.review desc',
 			),
+			'reviewer.name' => array(
+				'asc' => 'reviewer.name asc',
+				'desc' => 'reviewer.name desc',
+			),
+			'genres' => array(
+				'asc' => 'gsq.gnames asc',
+				'desc' => 'gsq.gnames desc',
+			),
 		);
+
+		if ($this->scenario === 'SongGenre') {
+			$dpModel = new SongGenre;
+
+			$criteria->compare('song.name', $this->name, true);
+			$criteria->compare('song.artist', $this->artist, true);
+			$criteria->compare('song.album', $this->album, true);
+			$criteria->compare('genre.name', $this->genre, true);
+
+			if (array_key_exists('genres', $sort->directions)) {
+				$criteria->join =
+					'left join (
+					    select group_concat(distinct g.name separator " ") as gnames,
+					      sg.song_id as sid
+					    from song_genre sg
+					    inner join genre g on g.id = sg.genre_id
+					    group by sg.song_id
+					) gsq on gsq.sid = t.song_id';
+			}
+		} elseif ($this->scenario === 'Review') {
+			$dpModel = new Review;
+
+			$criteria->compare('song.name', $this->name, true);
+			$criteria->compare('song.artist', $this->artist, true);
+			$criteria->compare('song.album', $this->album, true);
+			$criteria->compare('t.review', $this->review, true);
+			$criteria->compare('reviewer.name', $this->reviewer, true);
+			if (array_key_exists('genres', $sort->directions)
+				|| $this->genre !== null
+			) {
+				$criteria->join =
+					'left join (
+					    select group_concat(distinct g.name separator " ") as gnames,
+					      sg.song_id as sid
+					    from song_genre sg
+					    inner join genre g on g.id = sg.genre_id
+					    group by sg.song_id
+					) gsq on gsq.sid = t.song_id';
+			}
+			if ($this->genre !== null) {
+				$genres = preg_split('/[\s,.]+/', $this->genre);
+				$genre = array_shift($genres);
+				$criteria->compare('gsq.gnames', $genre, true);
+				if ($genres) {
+					foreach ($genres as $genre) {
+						$criteria->compare('gsq.gnames', $this->genre, true, 'or');
+					}
+				}
+			}
+
+		} else {
+			$dpModel = new Song;
+
+			$criteria->compare('name', $this->name, true);
+			$criteria->compare('artist', $this->artist, true);
+			$criteria->compare('album', $this->album, true);
+		}
+
+		if ($this->criteria) {
+			$criteria->mergeWith($this->criteria);
+		}
 
 		return new CActiveDataProvider($dpModel, array(
 			'criteria' => $criteria,

@@ -25,8 +25,8 @@ class Review extends CActiveRecord {
 
 	public function relations() {
 		return array(
-			'song' => array(self::BELONGS_TO, 'Song', 'song_id'),
 			'reviewer' => array(self::BELONGS_TO, 'Reviewer', 'reviewer_id'),
+			'song' => array(self::BELONGS_TO, 'Song', 'song_id'),
 		);
 	}
 
